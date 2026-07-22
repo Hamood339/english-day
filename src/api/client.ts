@@ -8,22 +8,24 @@ export interface SessionPayload {
   date: string;
   soundEnabled: boolean;
   penaltyAmount: number;
+  topPenaltyAmount: number;
   members: ApiMember[];
 }
 
 export interface SummaryPayload {
   date: string;
   penaltyAmount: number;
+  topPenaltyAmount: number;
   totalMistakes: number;
   totalAmount: number;
-  members: (ApiMember & { amountDue: number })[];
+  members: (ApiMember & { amountDue: number; isTopOffender: boolean })[];
 }
 
 export interface HistoryDay {
   date: string;
   totalMistakes: number;
   totalAmount: number;
-  members: (ApiMember & { amountDue: number })[];
+  members: (ApiMember & { amountDue: number; isTopOffender: boolean })[];
 }
 
 export type Role = "admin" | "viewer";

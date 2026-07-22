@@ -4,14 +4,14 @@ interface StatsCardProps {
   totalMistakes: number;
   mostDisciplined: Member[];
   mostWanted: Member[];
-  penaltyAmount: number;
+  totalAmount: number;
 }
 
 export function StatsCard({
   totalMistakes,
   mostDisciplined,
   mostWanted,
-  penaltyAmount,
+  totalAmount,
 }: StatsCardProps) {
   const disciplinedLabel =
     mostDisciplined.length === 0
@@ -39,7 +39,7 @@ export function StatsCard({
             Total collected
           </dt>
           <dd className="mt-1 font-mono text-xl font-bold text-brand dark:text-orange-300">
-            {(totalMistakes * penaltyAmount).toLocaleString("en-US")}
+            {totalAmount.toLocaleString("en-US")}
           </dd>
         </div>
         <div>

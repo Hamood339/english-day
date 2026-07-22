@@ -1,7 +1,12 @@
 import { useState, type FormEvent } from "react";
+import { X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
-export default function Login() {
+interface LoginModalProps {
+  onClose: () => void;
+}
+
+export function LoginModal({ onClose }: LoginModalProps) {
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -14,6 +19,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(username, password);
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -22,16 +28,29 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-paper px-4 dark:bg-stone-950">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-2xl border border-border-line bg-paper-card p-6 shadow-sm dark:border-stone-700 dark:bg-stone-900"
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-sm rounded-2xl border border-border-line bg-paper-card p-6 shadow-lg dark:border-stone-700 dark:bg-stone-900"
       >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-3 top-3 rounded-full p-1.5 text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
+        >
+          <X size={16} />
+        </button>
+
         <h1 className="mb-1 font-display text-lg font-semibold text-ink dark:text-white">
-          English Day Challenge
+          Admin sign in
         </h1>
         <p className="mb-5 text-sm text-stone-500 dark:text-stone-400">
-          Sign in to view or manage today's scores.
+          Only admins need to sign in to record mistakes and manage the roster.
         </p>
 
         <label className="mb-3 block text-sm text-ink dark:text-white">

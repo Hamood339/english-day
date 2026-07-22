@@ -5,9 +5,15 @@ interface PenaltyCardProps {
   mostWanted: Member[];
   hasMembers: boolean;
   penaltyAmount: number;
+  topPenaltyAmount: number;
 }
 
-export function PenaltyCard({ mostWanted, hasMembers, penaltyAmount }: PenaltyCardProps) {
+export function PenaltyCard({
+  mostWanted,
+  hasMembers,
+  penaltyAmount,
+  topPenaltyAmount,
+}: PenaltyCardProps) {
   if (mostWanted.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border-line bg-paper-card p-6 text-center dark:border-stone-700 dark:bg-stone-900">
@@ -22,6 +28,8 @@ export function PenaltyCard({ mostWanted, hasMembers, penaltyAmount }: PenaltyCa
 
   const names = mostWanted.map((m) => m.name).join(" & ");
   const isTie = mostWanted.length > 1;
+  const mistakeAmount = mostWanted[0].mistakes * penaltyAmount;
+  const totalDue = mistakeAmount + topPenaltyAmount;
 
   return (
     <motion.div
@@ -47,11 +55,14 @@ export function PenaltyCard({ mostWanted, hasMembers, penaltyAmount }: PenaltyCa
         </div>
         <div className="shrink-0 rounded-xl bg-ink px-4 py-3 text-center dark:bg-black">
           <p className="text-[10px] font-mono uppercase tracking-widest text-white/60">
-            Penalty due
+            Penalty due if day ends now
           </p>
           <p className="font-mono text-2xl font-bold text-white">
-            {(mostWanted[0].mistakes * penaltyAmount).toLocaleString("en-US")}
+            {totalDue.toLocaleString("en-US")}
             <span className="ml-1 text-sm font-medium text-white/70">FCFA</span>
+          </p>
+          <p className="mt-1 text-[9px] text-white/50">
+            {mistakeAmount.toLocaleString("en-US")} mistakes + {topPenaltyAmount.toLocaleString("en-US")} top-offender fine
           </p>
         </div>
       </div>

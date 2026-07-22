@@ -37,7 +37,14 @@ export function PaymentHistory({ days }: PaymentHistoryProps) {
                     key={m.id}
                     className="flex items-center justify-between text-xs text-stone-600 dark:text-stone-300"
                   >
-                    <span>{m.name}</span>
+                    <span className="flex items-center gap-1.5">
+                      {m.name}
+                      {m.isTopOffender && (
+                        <span className="rounded-full bg-stamp/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-stamp">
+                          top offender
+                        </span>
+                      )}
+                    </span>
                     <span className="font-mono">
                       {m.mistakes} × → {m.amountDue.toLocaleString("en-US")} FCFA
                     </span>

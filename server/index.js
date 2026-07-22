@@ -50,16 +50,27 @@ async function getSessionPayload() {
     date: toDateKey(state.current_day),
     soundEnabled: state.sound_enabled,
     penaltyAmount: state.penalty_amount,
+    topPenaltyAmount: state.top_penalty_amount,
     members,
   };
 }
 
-/** Snapshots every member's current tally into day_history before it gets reset. */
+/**
+ * Snapshots every member's current tally into day_history before it gets reset.
+ * Whoever has the most mistakes that day (ties all count) also gets the flat
+ * top_penalty_amount fine on top of their per-mistake total.
+ */
 async function archiveCurrentDay(date) {
   await pool.query(
-    `INSERT INTO day_history (date, member_id, member_name, mistakes, penalty_amount)
-     SELECT $1, id, name, mistakes, (SELECT penalty_amount FROM app_state WHERE id = true)
-     FROM members`,
+    `INSERT INTO day_history
+       (date, member_id, member_name, mistakes, penalty_amount, is_top_offender, extra_penalty)
+     SELECT $1, m.id, m.name, m.mistakes, s.penalty_amount,
+            (maxm.max_mistakes > 0 AND m.mistakes = maxm.max_mistakes),
+            CASE WHEN maxm.max_mistakes > 0 AND m.mistakes = maxm.max_mistakes
+                 THEN s.top_penalty_amount ELSE 0 END
+     FROM members m
+     CROSS JOIN (SELECT COALESCE(MAX(mistakes), 0) AS max_mistakes FROM members) maxm
+     CROSS JOIN (SELECT penalty_amount, top_penalty_amount FROM app_state WHERE id = true) s`,
     [date]
   );
 }
@@ -88,8 +99,8 @@ app.get("/api/auth/me", requireAuth, (req, res) => {
   res.json({ username: req.user.username, role: req.user.role });
 });
 
-// --- Session (shared, live "today") ---
-app.get("/api/session", requireAuth, async (req, res) => {
+// --- Session (shared, live "today") — public, no login needed to view ---
+app.get("/api/session", async (req, res) => {
   res.json(await getSessionPayload());
 });
 
@@ -156,26 +167,36 @@ app.post("/api/members/:id/undo", requireAuth, requireAdmin, async (req, res) =>
 });
 
 // --- Summary: total collected today + how much each person currently owes ---
-app.get("/api/summary", requireAuth, async (req, res) => {
+// Public — anyone can see the live scores and penalties without logging in.
+app.get("/api/summary", async (req, res) => {
   const session = await getSessionPayload();
-  const members = session.members.map((m) => ({
-    ...m,
-    amountDue: m.mistakes * session.penaltyAmount,
-  }));
+  const maxMistakes = session.members.reduce((max, m) => Math.max(max, m.mistakes), 0);
+  const members = session.members.map((m) => {
+    const isTopOffender = maxMistakes > 0 && m.mistakes === maxMistakes;
+    const extraPenalty = isTopOffender ? session.topPenaltyAmount : 0;
+    return {
+      ...m,
+      isTopOffender,
+      amountDue: m.mistakes * session.penaltyAmount + extraPenalty,
+    };
+  });
   const totalMistakes = members.reduce((sum, m) => sum + m.mistakes, 0);
+  const totalAmount = members.reduce((sum, m) => sum + m.amountDue, 0);
   res.json({
     date: session.date,
     penaltyAmount: session.penaltyAmount,
+    topPenaltyAmount: session.topPenaltyAmount,
     totalMistakes,
-    totalAmount: totalMistakes * session.penaltyAmount,
+    totalAmount,
     members,
   });
 });
 
 // --- History: closed-out past days, each with their per-member totals ---
-app.get("/api/history", requireAuth, async (req, res) => {
+// Public — same reasoning as above.
+app.get("/api/history", async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT date, member_id, member_name, mistakes, penalty_amount
+    `SELECT date, member_id, member_name, mistakes, penalty_amount, is_top_offender, extra_penalty
      FROM day_history ORDER BY date DESC, member_name ASC`
   );
   const byDate = new Map();
@@ -185,8 +206,14 @@ app.get("/api/history", requireAuth, async (req, res) => {
       byDate.set(key, { date: key, totalMistakes: 0, totalAmount: 0, members: [] });
     }
     const entry = byDate.get(key);
-    const amountDue = r.mistakes * r.penalty_amount;
-    entry.members.push({ id: r.member_id, name: r.member_name, mistakes: r.mistakes, amountDue });
+    const amountDue = r.mistakes * r.penalty_amount + r.extra_penalty;
+    entry.members.push({
+      id: r.member_id,
+      name: r.member_name,
+      mistakes: r.mistakes,
+      amountDue,
+      isTopOffender: r.is_top_offender,
+    });
     entry.totalMistakes += r.mistakes;
     entry.totalAmount += amountDue;
   }

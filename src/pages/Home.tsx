@@ -7,6 +7,7 @@ import { Leaderboard } from "../components/Leaderboard";
 import { AddMemberForm } from "../components/AddMemberForm";
 import { PenaltyCard } from "../components/PenaltyCard";
 import { PaymentHistory } from "../components/PaymentHistory";
+import { LoginModal } from "../components/LoginModal";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { StatsCard } from "../components/StatsCard";
 import { Toast, type ToastMessage } from "../components/Toast";
@@ -42,6 +43,7 @@ export default function Home() {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [history, setHistory] = useState<HistoryDay[]>([]);
+  const [loginOpen, setLoginOpen] = useState(false);
 
   const isAdmin = user?.role === "admin";
 
@@ -62,11 +64,14 @@ export default function Home() {
 
   const members = useMemo(() => session?.members ?? [], [session]);
   const penaltyAmount = session?.penaltyAmount ?? 100;
+  const topPenaltyAmount = session?.topPenaltyAmount ?? 1000;
 
   const rankedMembers = useMemo(() => sortByMistakes(members), [members]);
   const totalMistakes = useMemo(() => getTotalMistakes(members), [members]);
   const mostWanted = useMemo(() => getMostWanted(members), [members]);
   const mostDisciplined = useMemo(() => getMostDisciplined(members), [members]);
+  const totalAmount =
+    totalMistakes * penaltyAmount + (mostWanted.length > 0 ? mostWanted.length * topPenaltyAmount : 0);
   const memberPendingDelete = useMemo(
     () => members.find((m) => m.id === pendingDeleteId) ?? null,
     [members, pendingDeleteId]
@@ -196,9 +201,9 @@ export default function Home() {
         onToggleDarkMode={() => setDarkMode((d) => !d)}
         soundEnabled={session.soundEnabled}
         onToggleSound={toggleSound}
-        username={user?.username ?? ""}
-        role={user?.role ?? "viewer"}
+        user={user}
         onLogout={logout}
+        onLoginClick={() => setLoginOpen(true)}
       />
 
       <main className="mx-auto -mt-4 flex max-w-3xl flex-col gap-6 px-5 sm:-mt-5">
@@ -206,13 +211,14 @@ export default function Home() {
           mostWanted={mostWanted}
           hasMembers={members.length > 0}
           penaltyAmount={penaltyAmount}
+          topPenaltyAmount={topPenaltyAmount}
         />
 
         <StatsCard
           totalMistakes={totalMistakes}
           mostDisciplined={mostDisciplined}
           mostWanted={mostWanted}
-          penaltyAmount={penaltyAmount}
+          totalAmount={totalAmount}
         />
 
         <section aria-labelledby="participants-heading">
@@ -253,7 +259,11 @@ export default function Home() {
 
         {isAdmin && <AddMemberForm onAdd={handleAddMember} />}
 
-        <Leaderboard rankedMembers={rankedMembers} penaltyAmount={penaltyAmount} />
+        <Leaderboard
+          rankedMembers={rankedMembers}
+          penaltyAmount={penaltyAmount}
+          topPenaltyAmount={topPenaltyAmount}
+        />
 
         <PaymentHistory days={history} />
 
@@ -306,6 +316,8 @@ export default function Home() {
         onConfirm={handleStartNewDay}
         onCancel={handleKeepScores}
       />
+
+      {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
 
       <motion.p
         initial={{ opacity: 0 }}
