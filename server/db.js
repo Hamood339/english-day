@@ -10,4 +10,7 @@ if (!process.env.DATABASE_URL) {
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
+  // Keep small: on Vercel each serverless instance gets its own pool, and the
+  // Neon "-pooler" endpoint already multiplexes connections via PgBouncer.
+  max: 5,
 });
