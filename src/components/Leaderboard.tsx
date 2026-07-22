@@ -3,6 +3,7 @@ import type { Member } from "../types/member";
 
 interface LeaderboardProps {
   rankedMembers: Member[];
+  penaltyAmount: number;
 }
 
 const RANK_STYLES = [
@@ -11,7 +12,7 @@ const RANK_STYLES = [
   "bg-amber-700/70 text-white",
 ];
 
-export function Leaderboard({ rankedMembers }: LeaderboardProps) {
+export function Leaderboard({ rankedMembers, penaltyAmount }: LeaderboardProps) {
   if (rankedMembers.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border-line p-6 text-center text-sm text-stone-500 dark:border-stone-700 dark:text-stone-400">
@@ -50,6 +51,9 @@ export function Leaderboard({ rankedMembers }: LeaderboardProps) {
             </span>
             <span className="font-mono text-sm font-semibold tabular-nums text-stone-600 dark:text-stone-300">
               {member.mistakes} {member.mistakes === 1 ? "mistake" : "mistakes"}
+            </span>
+            <span className="font-mono text-xs font-semibold tabular-nums text-stamp">
+              {(member.mistakes * penaltyAmount).toLocaleString("en-US")} FCFA
             </span>
           </motion.li>
         ))}

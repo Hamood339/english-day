@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { Volume2, VolumeX } from "lucide-react";
+import { LogOut, Volume2, VolumeX } from "lucide-react";
+import type { Role } from "../api/client";
 
 interface HeaderProps {
   displayDate: string;
@@ -8,6 +9,9 @@ interface HeaderProps {
   onToggleDarkMode: () => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
+  username: string;
+  role: Role;
+  onLogout: () => void;
 }
 
 export function Header({
@@ -15,11 +19,20 @@ export function Header({
   totalMistakes,
   soundEnabled,
   onToggleSound,
+  username,
+  role,
+  onLogout,
 }: HeaderProps) {
   return (
     <header className="perforated-edge relative overflow-hidden bg-gradient-to-br from-brand to-brand-dark pb-8 pt-6 text-white sm:pb-10 sm:pt-8">
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5">
         <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-2 text-sm text-white/85">
+            <span className="font-medium">{username}</span>
+            <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+              {role}
+            </span>
+          </div>
 
           <div className="flex items-center gap-1">
             <button
@@ -30,6 +43,14 @@ export function Header({
               className="rounded-full p-2 text-white/85 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            </button>
+            <button
+              type="button"
+              onClick={onLogout}
+              aria-label="Sign out"
+              className="rounded-full p-2 text-white/85 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            >
+              <LogOut size={18} />
             </button>
           </div>
         </div>

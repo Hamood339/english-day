@@ -7,11 +7,23 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server/index.js",
+    "server:dev": "node --watch server/index.js",
+    "migrate": "node server/migrate.js",
+    "seed": "node server/seed.js",
+    "dev:all": "concurrently -n server,client -c blue,green \"npm:server:dev\" \"npm:dev\""
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
     "framer-motion": "^12.42.2",
+    "jsonwebtoken": "^9.0.2",
     "lucide-react": "^1.25.0",
+    "pg": "^8.13.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
@@ -22,6 +34,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "autoprefixer": "^10.5.4",
+    "concurrently": "^9.1.0",
     "oxlint": "^1.71.0",
     "postcss": "^8.5.22",
     "tailwindcss": "^4.3.3",

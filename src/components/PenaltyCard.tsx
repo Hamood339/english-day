@@ -1,13 +1,13 @@
 import { motion } from "framer-motion";
 import type { Member } from "../types/member";
-import { PENALTY_AMOUNT_FCFA } from "../utils/ranking";
 
 interface PenaltyCardProps {
   mostWanted: Member[];
   hasMembers: boolean;
+  penaltyAmount: number;
 }
 
-export function PenaltyCard({ mostWanted, hasMembers }: PenaltyCardProps) {
+export function PenaltyCard({ mostWanted, hasMembers, penaltyAmount }: PenaltyCardProps) {
   if (mostWanted.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border-line bg-paper-card p-6 text-center dark:border-stone-700 dark:bg-stone-900">
@@ -50,7 +50,7 @@ export function PenaltyCard({ mostWanted, hasMembers }: PenaltyCardProps) {
             Penalty due
           </p>
           <p className="font-mono text-2xl font-bold text-white">
-            {PENALTY_AMOUNT_FCFA.toLocaleString("en-US")}
+            {(mostWanted[0].mistakes * penaltyAmount).toLocaleString("en-US")}
             <span className="ml-1 text-sm font-medium text-white/70">FCFA</span>
           </p>
         </div>

@@ -24,7 +24,8 @@ export function getTotalMistakes(members: Member[]): number {
   return members.reduce((sum, m) => sum + m.mistakes, 0);
 }
 
-export const PENALTY_AMOUNT_FCFA = 1000;
+/** Fallback shown before the shared penalty amount loads from the server. */
+export const PENALTY_AMOUNT_FCFA = 100;
 
 export function todayKey(): string {
   const now = new Date();

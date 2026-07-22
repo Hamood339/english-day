@@ -10,6 +10,7 @@ interface MemberCardProps {
   onUndoMistake: (id: number) => void;
   onRename: (id: number, name: string) => void;
   onRequestDelete: (id: number) => void;
+  readOnly?: boolean;
 }
 
 const AVATARS = ["🙂", "😄", "🧑‍💼", "👩‍🎓", "🧑‍🎨", "😊", "🤓", "👨‍🚀", "👩‍🚀", "🙃"];
@@ -25,6 +26,7 @@ export function MemberCard({
   onUndoMistake,
   onRename,
   onRequestDelete,
+  readOnly = false,
 }: MemberCardProps) {
   const [stampBurst, setStampBurst] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
@@ -151,7 +153,7 @@ export function MemberCard({
           </div>
         </div>
 
-        {!isEditing && (
+        {!isEditing && !readOnly && (
           <div className="flex items-center gap-1 pl-14">
             <button
               type="button"
@@ -189,8 +191,9 @@ export function MemberCard({
         <button
           type="button"
           onClick={handleClick}
+          disabled={readOnly}
           aria-label={`Record an English Day mistake for ${member.name}`}
-          className="group flex flex-col items-center gap-0.5 rounded-xl px-1.5 py-1.5 text-brand transition hover:bg-brand/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand active:scale-95 dark:text-orange-300"
+          className="group flex flex-col items-center gap-0.5 rounded-xl px-1.5 py-1.5 text-brand transition hover:bg-brand/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-orange-300"
         >
           <Stamp size={20} className="transition group-active:rotate-[-12deg]" />
           <span className="text-[10px] font-semibold uppercase tracking-wide">+1</span>
