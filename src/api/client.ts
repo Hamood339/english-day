@@ -1,5 +1,6 @@
 export interface ApiMember {
   id: number;
+
   name: string;
   mistakes: number;
 }
