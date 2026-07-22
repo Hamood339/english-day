@@ -7,6 +7,7 @@ import { MemberCard } from "../components/MemberCard";
 import { Leaderboard } from "../components/Leaderboard";
 import { AddMemberForm } from "../components/AddMemberForm";
 import { PenaltyCard } from "../components/PenaltyCard";
+import { ClosingCountdown } from "../components/ClosingCountdown";
 import { PaymentHistory } from "../components/PaymentHistory";
 import { LoginModal } from "../components/LoginModal";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -208,6 +209,8 @@ export default function Home() {
       />
 
       <main className="mx-auto -mt-4 flex max-w-3xl flex-col gap-6 px-5 sm:-mt-5">
+        <ClosingCountdown />
+
         <PenaltyCard
           mostWanted={mostWanted}
           hasMembers={members.length > 0}
