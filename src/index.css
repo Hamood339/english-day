@@ -1,0 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Bricolage Grotesque", "Manrope", sans-serif;
+  --font-body: "Manrope", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --color-ink: #1c1310;
+  --color-paper: #fffaf5;
+  --color-paper-card: #ffffff;
+  --color-border-line: #f2ddc4;
+  --color-brand: #f97316;
+  --color-brand-dark: #c2410c;
+  --color-stamp: #c2410c;
+  --color-stamp-dark: #7c2d12;
+  --color-gold: #f59e0b;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    font-family: var(--font-body);
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+  }
+  html.dark body {
+    background-color: #0a0a0a;
+    color: #f5f5f4;
+  }
+}
+
+/* Perforated / ticket edge used on the header and boarding-pass cards */
+.perforated-edge {
+  position: relative;
+}
+.perforated-edge::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 14px;
+  background-image: radial-gradient(circle at 10px 0, transparent 7px, var(--color-paper) 7.5px);
+  background-size: 20px 14px;
+  background-repeat: repeat-x;
+}
+html.dark .perforated-edge::after {
+  background-image: radial-gradient(circle at 10px 0, transparent 7px, #0a0a0a 7.5px);
+}
+
+.stamp-mark {
+  font-family: var(--font-mono);
+  border: 3px solid var(--color-stamp);
+  color: var(--color-stamp);
+  transform: rotate(-8deg);
+  border-radius: 10px;
+  letter-spacing: 0.08em;
+}
+
+/* respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
