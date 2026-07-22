@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Pencil, Plane, Stamp, Trash2, Undo2, X } from "lucide-react";
+import { Check, Pencil, Plane, RotateCcw, Stamp, Trash2, Undo2, Wallet, X } from "lucide-react";
 import type { Member } from "../types/member";
 
 interface MemberCardProps {
@@ -8,6 +8,8 @@ interface MemberCardProps {
   isMostWanted: boolean;
   onAddMistake: (id: number) => void;
   onUndoMistake: (id: number) => void;
+  onPayMistake: (id: number) => void;
+  onUnpayMistake: (id: number) => void;
   onRename: (id: number, name: string) => void;
   onRequestDelete: (id: number) => void;
   readOnly?: boolean;
@@ -24,6 +26,8 @@ export function MemberCard({
   isMostWanted,
   onAddMistake,
   onUndoMistake,
+  onPayMistake,
+  onUnpayMistake,
   onRename,
   onRequestDelete,
   readOnly = false,
@@ -137,7 +141,7 @@ export function MemberCard({
               </p>
             )}
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              Non-English mistakes
+              {member.paidMistakes} paid · {member.unpaidMistakes} unpaid
             </p>
           </div>
           <div className="text-right">
@@ -171,6 +175,24 @@ export function MemberCard({
             >
               <Undo2 size={12} />
               Undo (misheard)
+            </button>
+            <button
+              type="button"
+              onClick={() => onPayMistake(member.id)}
+              disabled={member.unpaidMistakes === 0}
+              className="flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-stone-500 transition hover:bg-stone-100 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-white"
+            >
+              <Wallet size={12} />
+              Pay
+            </button>
+            <button
+              type="button"
+              onClick={() => onUnpayMistake(member.id)}
+              disabled={member.paidMistakes === 0}
+              aria-label={`Undo last payment for ${member.name}`}
+              className="flex items-center gap-1 rounded-full p-1 text-[11px] font-medium text-stone-500 transition hover:bg-stone-100 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-white"
+            >
+              <RotateCcw size={12} />
             </button>
             <button
               type="button"

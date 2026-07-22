@@ -2,9 +2,11 @@ import type { HistoryDay } from "../api/client";
 
 interface PaymentHistoryProps {
   days: HistoryDay[];
+  isAdmin: boolean;
+  onToggleExtraPaid: (date: string) => void;
 }
 
-export function PaymentHistory({ days }: PaymentHistoryProps) {
+export function PaymentHistory({ days, isAdmin, onToggleExtraPaid }: PaymentHistoryProps) {
   if (days.length === 0) return null;
 
   return (
@@ -29,7 +31,10 @@ export function PaymentHistory({ days }: PaymentHistoryProps) {
                 {day.totalAmount.toLocaleString("en-US")} FCFA
               </p>
             </div>
-            <ul className="flex flex-col gap-1">
+            <p className="mb-2 text-[11px] text-stone-500 dark:text-stone-400">
+              {day.totalPaid.toLocaleString("en-US")} paid · {day.totalUnpaid.toLocaleString("en-US")} unpaid
+            </p>
+            <ul className="flex flex-col gap-1.5">
               {day.members
                 .filter((m) => m.mistakes > 0)
                 .map((m) => (
@@ -40,13 +45,22 @@ export function PaymentHistory({ days }: PaymentHistoryProps) {
                     <span className="flex items-center gap-1.5">
                       {m.name}
                       {m.isTopOffender && (
-                        <span className="rounded-full bg-stamp/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-stamp">
-                          top offender
-                        </span>
+                        <button
+                          type="button"
+                          disabled={!isAdmin}
+                          onClick={() => onToggleExtraPaid(day.date)}
+                          className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase transition ${
+                            m.extraPenaltyPaid
+                              ? "bg-green-500/15 text-green-600 dark:text-green-400"
+                              : "bg-stamp/15 text-stamp"
+                          } ${isAdmin ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
+                        >
+                          top offender {m.extraPenaltyPaid ? "· paid" : "· unpaid"}
+                        </button>
                       )}
                     </span>
                     <span className="font-mono">
-                      {m.mistakes} × → {m.amountDue.toLocaleString("en-US")} FCFA
+                      {m.paidMistakes} paid, {m.unpaidMistakes} unpaid → {m.amountDue.toLocaleString("en-US")} FCFA
                     </span>
                   </li>
                 ))}

@@ -40,11 +40,33 @@ async function getState() {
   return inserted.rows[0];
 }
 
+// Each mistake is its own row (see the `mistakes` table) so it can be marked
+// paid or not individually. "Open" (closed = false) mistakes are today's live
+// tally — closing the day archives and closes them, so re-closing the same
+// calendar day later never double-counts anything.
+async function getMemberTallies() {
+  const { rows } = await pool.query(
+    `SELECT m.id, m.name,
+            COUNT(mi.id)::int AS mistakes,
+            COUNT(mi.id) FILTER (WHERE mi.paid)::int AS paid_mistakes,
+            COUNT(mi.id) FILTER (WHERE NOT mi.paid)::int AS unpaid_mistakes
+     FROM members m
+     LEFT JOIN mistakes mi ON mi.member_id = m.id AND mi.closed = false
+     GROUP BY m.id, m.name
+     ORDER BY m.id ASC`
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    mistakes: r.mistakes,
+    paidMistakes: r.paid_mistakes,
+    unpaidMistakes: r.unpaid_mistakes,
+  }));
+}
+
 async function getSessionPayload() {
   const state = await getState();
-  const { rows: members } = await pool.query(
-    `SELECT id, name, mistakes FROM members ORDER BY id ASC`
-  );
+  const members = await getMemberTallies();
   return {
     date: toDateKey(state.current_day),
     soundEnabled: state.sound_enabled,
@@ -55,13 +77,14 @@ async function getSessionPayload() {
 }
 
 /**
- * Snapshots every member's current tally into day_history before it gets reset.
- * If several members are tied for the most mistakes, exactly one of them is
- * picked at random (the draw) to owe the flat top_penalty_amount fine — the
- * others stay tied on mistakes but don't pay the extra fine.
+ * Snapshots every member's current (open) tally into day_history, then marks
+ * those mistakes closed. If several members are tied for the most mistakes,
+ * exactly one of them is picked at random (the draw) to owe the flat
+ * top_penalty_amount fine — the others stay tied on mistakes but don't pay
+ * the extra fine. Paid status is untouched either way; only `closed` changes.
  */
 async function archiveCurrentDay(date, state) {
-  const { rows: members } = await pool.query(`SELECT id, name, mistakes FROM members`);
+  const members = await getMemberTallies();
   const maxMistakes = members.reduce((max, m) => Math.max(max, m.mistakes), 0);
   const candidates = maxMistakes > 0 ? members.filter((m) => m.mistakes === maxMistakes) : [];
   const drawnId =
@@ -78,14 +101,15 @@ async function archiveCurrentDay(date, state) {
     );
   }
 
+  await pool.query(`UPDATE mistakes SET closed = true WHERE closed = false`);
+
   return candidates.find((m) => m.id === drawnId) ?? null;
 }
 
-/** Archives the current day (running the draw among tied leaders) and zeroes tallies. */
+/** Archives the current day (running the draw among tied leaders) and moves the cursor. */
 async function closeDay() {
   const state = await getState();
   const winner = await archiveCurrentDay(toDateKey(state.current_day), state);
-  await pool.query(`UPDATE members SET mistakes = 0`);
   await pool.query(`UPDATE app_state SET current_day = $1 WHERE id = true`, [todayKey()]);
   return winner;
 }
@@ -179,16 +203,72 @@ app.delete("/api/member", requireAuth, requireAdmin, async (req, res) => {
 });
 
 app.post("/api/member-mistake", requireAuth, requireAdmin, async (req, res) => {
-  await pool.query(`UPDATE members SET mistakes = mistakes + 1 WHERE id = $1`, [req.query.id]);
+  const state = await getState();
+  await pool.query(`INSERT INTO mistakes (member_id, day_date) VALUES ($1, $2)`, [
+    req.query.id,
+    toDateKey(state.current_day),
+  ]);
   res.json(await getSessionPayload());
 });
 
+// Undoes the most recently recorded UNPAID, still-open mistake — paid or
+// already-closed (archived) ones are left alone.
 app.post("/api/member-undo", requireAuth, requireAdmin, async (req, res) => {
   await pool.query(
-    `UPDATE members SET mistakes = GREATEST(mistakes - 1, 0) WHERE id = $1`,
+    `DELETE FROM mistakes WHERE id = (
+       SELECT id FROM mistakes
+       WHERE member_id = $1 AND closed = false AND paid = false
+       ORDER BY created_at DESC LIMIT 1
+     )`,
     [req.query.id]
   );
   res.json(await getSessionPayload());
+});
+
+// Marks the oldest unpaid mistake for this member as paid (any day, so a
+// backlog from a previous day can be settled too).
+app.post("/api/member-pay", requireAuth, requireAdmin, async (req, res) => {
+  await pool.query(
+    `UPDATE mistakes SET paid = true, paid_at = now() WHERE id = (
+       SELECT id FROM mistakes
+       WHERE member_id = $1 AND paid = false
+       ORDER BY created_at ASC LIMIT 1
+     )`,
+    [req.query.id]
+  );
+  res.json(await getSessionPayload());
+});
+
+// Undoes the most recent payment for this member, in case of a mis-click.
+app.post("/api/member-unpay", requireAuth, requireAdmin, async (req, res) => {
+  await pool.query(
+    `UPDATE mistakes SET paid = false, paid_at = null WHERE id = (
+       SELECT id FROM mistakes
+       WHERE member_id = $1 AND paid = true
+       ORDER BY paid_at DESC LIMIT 1
+     )`,
+    [req.query.id]
+  );
+  res.json(await getSessionPayload());
+});
+
+// Full ledger for one member — every mistake ever recorded, oldest first,
+// with its paid status. Lets the admin see exactly what's settled and what isn't.
+app.get("/api/member-ledger", requireAuth, requireAdmin, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, day_date, paid, paid_at, created_at
+     FROM mistakes WHERE member_id = $1 ORDER BY created_at ASC`,
+    [req.query.id]
+  );
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      dayDate: toDateKey(r.day_date),
+      paid: r.paid,
+      paidAt: r.paid_at,
+      createdAt: r.created_at,
+    }))
+  );
 });
 
 // --- Summary: total collected today + how much each person currently owes ---
@@ -198,49 +278,90 @@ app.get("/api/summary", async (req, res) => {
   const maxMistakes = session.members.reduce((max, m) => Math.max(max, m.mistakes), 0);
   const members = session.members.map((m) => {
     const isTopOffender = maxMistakes > 0 && m.mistakes === maxMistakes;
+    // The top-offender fine isn't decided (or collectable) until the draw at
+    // close, so it always shows as still owed in this live preview.
     const extraPenalty = isTopOffender ? session.topPenaltyAmount : 0;
     return {
       ...m,
       isTopOffender,
+      amountPaid: m.paidMistakes * session.penaltyAmount,
+      amountUnpaid: m.unpaidMistakes * session.penaltyAmount + extraPenalty,
       amountDue: m.mistakes * session.penaltyAmount + extraPenalty,
     };
   });
   const totalMistakes = members.reduce((sum, m) => sum + m.mistakes, 0);
   const totalAmount = members.reduce((sum, m) => sum + m.amountDue, 0);
+  const totalPaid = members.reduce((sum, m) => sum + m.amountPaid, 0);
+  const totalUnpaid = members.reduce((sum, m) => sum + m.amountUnpaid, 0);
   res.json({
     date: session.date,
     penaltyAmount: session.penaltyAmount,
     topPenaltyAmount: session.topPenaltyAmount,
     totalMistakes,
     totalAmount,
+    totalPaid,
+    totalUnpaid,
     members,
   });
 });
 
+// Toggles whether the top-offender's flat fine for a closed day has been paid.
+app.post("/api/history-pay", requireAuth, requireAdmin, async (req, res) => {
+  await pool.query(
+    `UPDATE day_history
+     SET extra_penalty_paid = NOT extra_penalty_paid,
+         extra_penalty_paid_at = CASE WHEN extra_penalty_paid THEN null ELSE now() END
+     WHERE date = $1 AND is_top_offender = true`,
+    [req.query.date]
+  );
+  res.json({ ok: true });
+});
+
 // --- History: closed-out past days, each with their per-member totals ---
-// Public — same reasoning as above.
+// Public — same reasoning as above. Paid/unpaid counts come straight from the
+// `mistakes` table, so settling a payment later still shows up here.
 app.get("/api/history", async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT date, member_id, member_name, mistakes, penalty_amount, is_top_offender, extra_penalty
-     FROM day_history ORDER BY date DESC, member_name ASC`
+    `SELECT dh.date, dh.member_id, dh.member_name, dh.mistakes, dh.penalty_amount,
+            dh.is_top_offender, dh.extra_penalty, dh.extra_penalty_paid,
+            COALESCE(mi.paid_count, 0)::int AS paid_count,
+            COALESCE(mi.unpaid_count, 0)::int AS unpaid_count
+     FROM day_history dh
+     LEFT JOIN (
+       SELECT member_id, day_date,
+              COUNT(*) FILTER (WHERE paid) AS paid_count,
+              COUNT(*) FILTER (WHERE NOT paid) AS unpaid_count
+       FROM mistakes WHERE closed = true GROUP BY member_id, day_date
+     ) mi ON mi.member_id = dh.member_id AND mi.day_date = dh.date
+     ORDER BY dh.date DESC, dh.member_name ASC`
   );
   const byDate = new Map();
   for (const r of rows) {
     const key = toDateKey(r.date);
     if (!byDate.has(key)) {
-      byDate.set(key, { date: key, totalMistakes: 0, totalAmount: 0, members: [] });
+      byDate.set(key, { date: key, totalMistakes: 0, totalAmount: 0, totalPaid: 0, totalUnpaid: 0, members: [] });
     }
     const entry = byDate.get(key);
-    const amountDue = r.mistakes * r.penalty_amount + r.extra_penalty;
+    const extraPaid = r.is_top_offender && r.extra_penalty_paid;
+    const extraUnpaid = r.is_top_offender && !r.extra_penalty_paid;
+    const amountPaid = r.paid_count * r.penalty_amount + (extraPaid ? r.extra_penalty : 0);
+    const amountUnpaid = r.unpaid_count * r.penalty_amount + (extraUnpaid ? r.extra_penalty : 0);
     entry.members.push({
       id: r.member_id,
       name: r.member_name,
       mistakes: r.mistakes,
-      amountDue,
+      paidMistakes: r.paid_count,
+      unpaidMistakes: r.unpaid_count,
+      amountPaid,
+      amountUnpaid,
+      amountDue: amountPaid + amountUnpaid,
       isTopOffender: r.is_top_offender,
+      extraPenaltyPaid: r.extra_penalty_paid,
     });
     entry.totalMistakes += r.mistakes;
-    entry.totalAmount += amountDue;
+    entry.totalAmount += amountPaid + amountUnpaid;
+    entry.totalPaid += amountPaid;
+    entry.totalUnpaid += amountUnpaid;
   }
   res.json(Array.from(byDate.values()));
 });

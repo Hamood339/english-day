@@ -116,6 +116,28 @@ export default function Home() {
     }
   };
 
+  const handlePayMistake = async (id: number) => {
+    const member = members.find((m) => m.id === id);
+    if (!member || member.unpaidMistakes === 0) return;
+    try {
+      setSession(await api.payMistake(id));
+      pushToast(`Payment recorded for ${member.name}. 💰`);
+    } catch (err) {
+      pushError(err);
+    }
+  };
+
+  const handleUnpayMistake = async (id: number) => {
+    const member = members.find((m) => m.id === id);
+    if (!member || member.paidMistakes === 0) return;
+    try {
+      setSession(await api.unpayMistake(id));
+      pushToast(`Undid last payment for ${member.name}.`);
+    } catch (err) {
+      pushError(err);
+    }
+  };
+
   const handleRenameMember = async (id: number, name: string) => {
     try {
       setSession(await api.renameMember(id, name));
@@ -182,6 +204,16 @@ export default function Home() {
     try {
       setSession(await api.startNewDay(true));
       setNewDayOpen(false);
+    } catch (err) {
+      pushError(err);
+    }
+  };
+
+  const handleToggleExtraPaid = async (date: string) => {
+    try {
+      await api.toggleHistoryPay(date);
+      const updated = await api.getHistory();
+      setHistory(updated);
     } catch (err) {
       pushError(err);
     }
@@ -257,6 +289,8 @@ export default function Home() {
                   isMostWanted={mostWanted.some((m) => m.id === member.id)}
                   onAddMistake={handleAddMistake}
                   onUndoMistake={handleUndoMistake}
+                  onPayMistake={handlePayMistake}
+                  onUnpayMistake={handleUnpayMistake}
                   onRename={handleRenameMember}
                   onRequestDelete={handleRequestDelete}
                   readOnly={!isAdmin}
@@ -279,7 +313,7 @@ export default function Home() {
           topPenaltyAmount={topPenaltyAmount}
         />
 
-        <PaymentHistory days={history} />
+        <PaymentHistory days={history} isAdmin={isAdmin} onToggleExtraPaid={handleToggleExtraPaid} />
 
         {isAdmin && (
           <div className="flex justify-center pt-2">
