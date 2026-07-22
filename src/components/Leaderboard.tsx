@@ -23,6 +23,8 @@ export function Leaderboard({ rankedMembers, penaltyAmount, topPenaltyAmount }: 
   }
 
   const maxMistakes = rankedMembers[0]?.mistakes ?? 0;
+  const tiedForTop = rankedMembers.filter((m) => m.mistakes === maxMistakes).length;
+  const isDrawPending = maxMistakes > 0 && tiedForTop > 1;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border-line bg-paper-card shadow-sm dark:border-stone-700 dark:bg-stone-900">
@@ -36,8 +38,8 @@ export function Leaderboard({ rankedMembers, penaltyAmount, topPenaltyAmount }: 
       </div>
       <ul>
         {rankedMembers.map((member, index) => {
-          const isTopOffender = maxMistakes > 0 && member.mistakes === maxMistakes;
-          const amountDue = member.mistakes * penaltyAmount + (isTopOffender ? topPenaltyAmount : 0);
+          const isLeader = maxMistakes > 0 && member.mistakes === maxMistakes;
+          const amountDue = member.mistakes * penaltyAmount + (isLeader && !isDrawPending ? topPenaltyAmount : 0);
           return (
             <motion.li
               key={member.id}
@@ -60,7 +62,12 @@ export function Leaderboard({ rankedMembers, penaltyAmount, topPenaltyAmount }: 
               </span>
               <span className="flex items-center gap-1 font-mono text-xs font-semibold tabular-nums text-stamp">
                 {amountDue.toLocaleString("en-US")} FCFA
-                {isTopOffender && (
+                {isLeader && isDrawPending && (
+                  <span className="rounded-full bg-stamp/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-stamp">
+                    draw?
+                  </span>
+                )}
+                {isLeader && !isDrawPending && (
                   <span className="rounded-full bg-stamp/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-stamp">
                     +{topPenaltyAmount}
                   </span>

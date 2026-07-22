@@ -13,6 +13,10 @@ export interface SessionPayload {
   members: ApiMember[];
 }
 
+export interface CloseDayResult extends SessionPayload {
+  drawnWinner: ApiMember | null;
+}
+
 export interface SummaryPayload {
   date: string;
   penaltyAmount: number;
@@ -66,9 +70,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ enabled }),
     }),
-  resetDay: () => request<SessionPayload>("/api/session-reset", { method: "POST" }),
+  resetDay: () => request<CloseDayResult>("/api/session-reset", { method: "POST" }),
   startNewDay: (keepScores: boolean) =>
-    request<SessionPayload>("/api/session-new-day", {
+    request<CloseDayResult>("/api/session-new-day", {
       method: "POST",
       body: JSON.stringify({ keepScores }),
     }),

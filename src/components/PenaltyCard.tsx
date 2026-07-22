@@ -49,13 +49,13 @@ export function PenaltyCard({
           </p>
           <p className="mt-0.5 text-sm text-stone-600 dark:text-stone-300">
             {isTie
-              ? "must split the fine of English Day."
+              ? "are tied — a random draw at closing picks who pays the fine."
               : "owes the fine of English Day."}
           </p>
         </div>
         <div className="shrink-0 rounded-xl bg-ink px-4 py-3 text-center dark:bg-black">
           <p className="text-[10px] font-mono uppercase tracking-widest text-white/60">
-            Penalty due if day ends now
+            {isTie ? "What the drawn winner owes" : "Penalty due if day ends now"}
           </p>
           <p className="font-mono text-2xl font-bold text-white">
             {totalDue.toLocaleString("en-US")}

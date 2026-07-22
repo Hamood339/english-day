@@ -56,30 +56,38 @@ async function getSessionPayload() {
 
 /**
  * Snapshots every member's current tally into day_history before it gets reset.
- * Whoever has the most mistakes that day (ties all count) also gets the flat
- * top_penalty_amount fine on top of their per-mistake total.
+ * If several members are tied for the most mistakes, exactly one of them is
+ * picked at random (the draw) to owe the flat top_penalty_amount fine — the
+ * others stay tied on mistakes but don't pay the extra fine.
  */
-async function archiveCurrentDay(date) {
-  await pool.query(
-    `INSERT INTO day_history
-       (date, member_id, member_name, mistakes, penalty_amount, is_top_offender, extra_penalty)
-     SELECT $1, m.id, m.name, m.mistakes, s.penalty_amount,
-            (maxm.max_mistakes > 0 AND m.mistakes = maxm.max_mistakes),
-            CASE WHEN maxm.max_mistakes > 0 AND m.mistakes = maxm.max_mistakes
-                 THEN s.top_penalty_amount ELSE 0 END
-     FROM members m
-     CROSS JOIN (SELECT COALESCE(MAX(mistakes), 0) AS max_mistakes FROM members) maxm
-     CROSS JOIN (SELECT penalty_amount, top_penalty_amount FROM app_state WHERE id = true) s`,
-    [date]
-  );
+async function archiveCurrentDay(date, state) {
+  const { rows: members } = await pool.query(`SELECT id, name, mistakes FROM members`);
+  const maxMistakes = members.reduce((max, m) => Math.max(max, m.mistakes), 0);
+  const candidates = maxMistakes > 0 ? members.filter((m) => m.mistakes === maxMistakes) : [];
+  const drawnId =
+    candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)].id : null;
+
+  for (const m of members) {
+    const isTopOffender = m.id === drawnId;
+    const extraPenalty = isTopOffender ? state.top_penalty_amount : 0;
+    await pool.query(
+      `INSERT INTO day_history
+         (date, member_id, member_name, mistakes, penalty_amount, is_top_offender, extra_penalty)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [date, m.id, m.name, m.mistakes, state.penalty_amount, isTopOffender, extraPenalty]
+    );
+  }
+
+  return candidates.find((m) => m.id === drawnId) ?? null;
 }
 
-/** Archives the current day (designating the top offender) and zeroes tallies. */
+/** Archives the current day (running the draw among tied leaders) and zeroes tallies. */
 async function closeDay() {
   const state = await getState();
-  await archiveCurrentDay(toDateKey(state.current_day));
+  const winner = await archiveCurrentDay(toDateKey(state.current_day), state);
   await pool.query(`UPDATE members SET mistakes = 0`);
   await pool.query(`UPDATE app_state SET current_day = $1 WHERE id = true`, [todayKey()]);
+  return winner;
 }
 
 // --- Auth ---
@@ -120,33 +128,34 @@ app.post("/api/session-sound", requireAuth, requireAdmin, async (req, res) => {
   res.json(await getSessionPayload());
 });
 
-// Closes the books on the current day: archives it to history, then zeroes
-// every mistake count and moves the shared cursor to today.
+// Closes the books on the current day: archives it to history (running the
+// draw if there's a tie), then zeroes every mistake count.
 app.post("/api/session-reset", requireAuth, requireAdmin, async (req, res) => {
-  await closeDay();
-  res.json(await getSessionPayload());
+  const winner = await closeDay();
+  res.json({ ...(await getSessionPayload()), drawnWinner: winner });
 });
 
 // Called when the calendar day has changed since the last visit.
 // keepScores=false archives + resets tallies; keepScores=true just moves the cursor.
 app.post("/api/session-new-day", requireAuth, requireAdmin, async (req, res) => {
   const { keepScores } = req.body ?? {};
+  let winner = null;
   if (!keepScores) {
-    await closeDay();
+    winner = await closeDay();
   } else {
     await pool.query(`UPDATE app_state SET current_day = $1 WHERE id = true`, [todayKey()]);
   }
-  res.json(await getSessionPayload());
+  res.json({ ...(await getSessionPayload()), drawnWinner: winner });
 });
 
-// Triggered by Vercel Cron at 16:30 daily: automatically closes the day so
-// whoever has the most mistakes is locked in as the one owing the top fine.
+// Triggered by Vercel Cron at 16:30 daily: automatically closes the day,
+// running the tie-breaking draw so exactly one top offender owes the fine.
 app.get("/api/cron-close-day", async (req, res) => {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  await closeDay();
-  res.json({ ok: true, closedAt: new Date().toISOString() });
+  const winner = await closeDay();
+  res.json({ ok: true, closedAt: new Date().toISOString(), drawnWinner: winner });
 });
 
 // --- Members (persistent roster) — id passed as ?id= to keep every route flat ---

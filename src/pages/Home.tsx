@@ -72,8 +72,9 @@ export default function Home() {
   const totalMistakes = useMemo(() => getTotalMistakes(members), [members]);
   const mostWanted = useMemo(() => getMostWanted(members), [members]);
   const mostDisciplined = useMemo(() => getMostDisciplined(members), [members]);
-  const totalAmount =
-    totalMistakes * penaltyAmount + (mostWanted.length > 0 ? mostWanted.length * topPenaltyAmount : 0);
+  // Only one member ever pays the top fine — ties are settled by a random
+  // draw at closing, so the extra fine is added once, not per tied member.
+  const totalAmount = totalMistakes * penaltyAmount + (mostWanted.length > 0 ? topPenaltyAmount : 0);
   const memberPendingDelete = useMemo(
     () => members.find((m) => m.id === pendingDeleteId) ?? null,
     [members, pendingDeleteId]
@@ -149,9 +150,14 @@ export default function Home() {
 
   const handleReset = async () => {
     try {
-      setSession(await api.resetDay());
+      const result = await api.resetDay();
+      setSession(result);
       setResetOpen(false);
-      pushToast("Fresh passport for everyone. Reset complete. 🧼");
+      if (result.drawnWinner) {
+        pushToast(`🎲 Drawn by lot: ${result.drawnWinner.name} pays the top fine!`);
+      } else {
+        pushToast("Fresh passport for everyone. Reset complete. 🧼");
+      }
       api.getHistory().then(setHistory).catch(() => {});
     } catch (err) {
       pushError(err);
@@ -160,8 +166,12 @@ export default function Home() {
 
   const handleStartNewDay = async () => {
     try {
-      setSession(await api.startNewDay(false));
+      const result = await api.startNewDay(false);
+      setSession(result);
       setNewDayOpen(false);
+      if (result.drawnWinner) {
+        pushToast(`🎲 Drawn by lot: ${result.drawnWinner.name} pays the top fine!`);
+      }
       api.getHistory().then(setHistory).catch(() => {});
     } catch (err) {
       pushError(err);
