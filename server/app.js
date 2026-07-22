@@ -74,6 +74,14 @@ async function archiveCurrentDay(date) {
   );
 }
 
+/** Archives the current day (designating the top offender) and zeroes tallies. */
+async function closeDay() {
+  const state = await getState();
+  await archiveCurrentDay(toDateKey(state.current_day));
+  await pool.query(`UPDATE members SET mistakes = 0`);
+  await pool.query(`UPDATE app_state SET current_day = $1 WHERE id = true`, [todayKey()]);
+}
+
 // --- Auth ---
 // Routes are intentionally flat (no /api/auth/... nesting) — this Vercel
 // project's filesystem function routing does not reliably invoke functions
@@ -115,24 +123,30 @@ app.post("/api/session-sound", requireAuth, requireAdmin, async (req, res) => {
 // Closes the books on the current day: archives it to history, then zeroes
 // every mistake count and moves the shared cursor to today.
 app.post("/api/session-reset", requireAuth, requireAdmin, async (req, res) => {
-  const state = await getState();
-  await archiveCurrentDay(toDateKey(state.current_day));
-  await pool.query(`UPDATE members SET mistakes = 0`);
-  await pool.query(`UPDATE app_state SET current_day = $1 WHERE id = true`, [todayKey()]);
+  await closeDay();
   res.json(await getSessionPayload());
 });
 
 // Called when the calendar day has changed since the last visit.
 // keepScores=false archives + resets tallies; keepScores=true just moves the cursor.
 app.post("/api/session-new-day", requireAuth, requireAdmin, async (req, res) => {
-  const state = await getState();
   const { keepScores } = req.body ?? {};
   if (!keepScores) {
-    await archiveCurrentDay(toDateKey(state.current_day));
-    await pool.query(`UPDATE members SET mistakes = 0`);
+    await closeDay();
+  } else {
+    await pool.query(`UPDATE app_state SET current_day = $1 WHERE id = true`, [todayKey()]);
   }
-  await pool.query(`UPDATE app_state SET current_day = $1 WHERE id = true`, [todayKey()]);
   res.json(await getSessionPayload());
+});
+
+// Triggered by Vercel Cron at 16:30 daily: automatically closes the day so
+// whoever has the most mistakes is locked in as the one owing the top fine.
+app.get("/api/cron-close-day", async (req, res) => {
+  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  await closeDay();
+  res.json({ ok: true, closedAt: new Date().toISOString() });
 });
 
 // --- Members (persistent roster) — id passed as ?id= to keep every route flat ---
