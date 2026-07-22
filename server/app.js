@@ -75,7 +75,10 @@ async function archiveCurrentDay(date) {
 }
 
 // --- Auth ---
-app.post("/api/auth/login", async (req, res) => {
+// Routes are intentionally flat (no /api/auth/... nesting) — this Vercel
+// project's filesystem function routing does not reliably invoke functions
+// for files nested in subfolders, only ones directly under /api.
+app.post("/api/auth-login", async (req, res) => {
   const { username, password } = req.body ?? {};
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password required" });
@@ -89,12 +92,12 @@ app.post("/api/auth/login", async (req, res) => {
   res.json({ username: user.username, role: user.role });
 });
 
-app.post("/api/auth/logout", (req, res) => {
+app.post("/api/auth-logout", (req, res) => {
   clearAuthCookie(res);
   res.json({ ok: true });
 });
 
-app.get("/api/auth/me", requireAuth, (req, res) => {
+app.get("/api/auth-me", requireAuth, (req, res) => {
   res.json({ username: req.user.username, role: req.user.role });
 });
 
@@ -103,7 +106,7 @@ app.get("/api/session", async (req, res) => {
   res.json(await getSessionPayload());
 });
 
-app.post("/api/session/sound", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/session-sound", requireAuth, requireAdmin, async (req, res) => {
   const { enabled } = req.body ?? {};
   await pool.query(`UPDATE app_state SET sound_enabled = $1 WHERE id = true`, [!!enabled]);
   res.json(await getSessionPayload());
@@ -111,7 +114,7 @@ app.post("/api/session/sound", requireAuth, requireAdmin, async (req, res) => {
 
 // Closes the books on the current day: archives it to history, then zeroes
 // every mistake count and moves the shared cursor to today.
-app.post("/api/session/reset", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/session-reset", requireAuth, requireAdmin, async (req, res) => {
   const state = await getState();
   await archiveCurrentDay(toDateKey(state.current_day));
   await pool.query(`UPDATE members SET mistakes = 0`);
@@ -121,7 +124,7 @@ app.post("/api/session/reset", requireAuth, requireAdmin, async (req, res) => {
 
 // Called when the calendar day has changed since the last visit.
 // keepScores=false archives + resets tallies; keepScores=true just moves the cursor.
-app.post("/api/session/new-day", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/session-new-day", requireAuth, requireAdmin, async (req, res) => {
   const state = await getState();
   const { keepScores } = req.body ?? {};
   if (!keepScores) {
@@ -132,7 +135,7 @@ app.post("/api/session/new-day", requireAuth, requireAdmin, async (req, res) => 
   res.json(await getSessionPayload());
 });
 
-// --- Members (persistent roster) ---
+// --- Members (persistent roster) — id passed as ?id= to keep every route flat ---
 app.post("/api/members", requireAuth, requireAdmin, async (req, res) => {
   const { name } = req.body ?? {};
   if (!name?.trim()) return res.status(400).json({ error: "Name required" });
@@ -140,27 +143,27 @@ app.post("/api/members", requireAuth, requireAdmin, async (req, res) => {
   res.json(await getSessionPayload());
 });
 
-app.patch("/api/members/:id", requireAuth, requireAdmin, async (req, res) => {
+app.patch("/api/member", requireAuth, requireAdmin, async (req, res) => {
   const { name } = req.body ?? {};
   if (!name?.trim()) return res.status(400).json({ error: "Name required" });
-  await pool.query(`UPDATE members SET name = $1 WHERE id = $2`, [name.trim(), req.params.id]);
+  await pool.query(`UPDATE members SET name = $1 WHERE id = $2`, [name.trim(), req.query.id]);
   res.json(await getSessionPayload());
 });
 
-app.delete("/api/members/:id", requireAuth, requireAdmin, async (req, res) => {
-  await pool.query(`DELETE FROM members WHERE id = $1`, [req.params.id]);
+app.delete("/api/member", requireAuth, requireAdmin, async (req, res) => {
+  await pool.query(`DELETE FROM members WHERE id = $1`, [req.query.id]);
   res.json(await getSessionPayload());
 });
 
-app.post("/api/members/:id/mistake", requireAuth, requireAdmin, async (req, res) => {
-  await pool.query(`UPDATE members SET mistakes = mistakes + 1 WHERE id = $1`, [req.params.id]);
+app.post("/api/member-mistake", requireAuth, requireAdmin, async (req, res) => {
+  await pool.query(`UPDATE members SET mistakes = mistakes + 1 WHERE id = $1`, [req.query.id]);
   res.json(await getSessionPayload());
 });
 
-app.post("/api/members/:id/undo", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/member-undo", requireAuth, requireAdmin, async (req, res) => {
   await pool.query(
     `UPDATE members SET mistakes = GREATEST(mistakes - 1, 0) WHERE id = $1`,
-    [req.params.id]
+    [req.query.id]
   );
   res.json(await getSessionPayload());
 });

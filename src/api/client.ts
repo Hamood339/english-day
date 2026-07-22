@@ -52,22 +52,22 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   login: (username: string, password: string) =>
-    request<AuthUser>("/api/auth/login", {
+    request<AuthUser>("/api/auth-login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),
-  logout: () => request<{ ok: true }>("/api/auth/logout", { method: "POST" }),
-  me: () => request<AuthUser>("/api/auth/me"),
+  logout: () => request<{ ok: true }>("/api/auth-logout", { method: "POST" }),
+  me: () => request<AuthUser>("/api/auth-me"),
 
   getSession: () => request<SessionPayload>("/api/session"),
   toggleSound: (enabled: boolean) =>
-    request<SessionPayload>("/api/session/sound", {
+    request<SessionPayload>("/api/session-sound", {
       method: "POST",
       body: JSON.stringify({ enabled }),
     }),
-  resetDay: () => request<SessionPayload>("/api/session/reset", { method: "POST" }),
+  resetDay: () => request<SessionPayload>("/api/session-reset", { method: "POST" }),
   startNewDay: (keepScores: boolean) =>
-    request<SessionPayload>("/api/session/new-day", {
+    request<SessionPayload>("/api/session-new-day", {
       method: "POST",
       body: JSON.stringify({ keepScores }),
     }),
@@ -78,16 +78,16 @@ export const api = {
       body: JSON.stringify({ name }),
     }),
   renameMember: (id: number, name: string) =>
-    request<SessionPayload>(`/api/members/${id}`, {
+    request<SessionPayload>(`/api/member?id=${id}`, {
       method: "PATCH",
       body: JSON.stringify({ name }),
     }),
   deleteMember: (id: number) =>
-    request<SessionPayload>(`/api/members/${id}`, { method: "DELETE" }),
+    request<SessionPayload>(`/api/member?id=${id}`, { method: "DELETE" }),
   addMistake: (id: number) =>
-    request<SessionPayload>(`/api/members/${id}/mistake`, { method: "POST" }),
+    request<SessionPayload>(`/api/member-mistake?id=${id}`, { method: "POST" }),
   undoMistake: (id: number) =>
-    request<SessionPayload>(`/api/members/${id}/undo`, { method: "POST" }),
+    request<SessionPayload>(`/api/member-undo?id=${id}`, { method: "POST" }),
 
   getSummary: () => request<SummaryPayload>("/api/summary"),
   getHistory: () => request<HistoryDay[]>("/api/history"),
